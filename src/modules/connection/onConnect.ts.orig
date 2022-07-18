@@ -1,0 +1,474 @@
+import { DataChange, Room, RoomAvailable } from 'colyseus.js'
+import { GAME_STATE } from '../state'
+import * as clientState from './state/client-state-spec'
+import * as SceneData from '../scene'
+//import * as gameUI from "../ui/index";
+
+import { Enemy, ENEMY_MGR } from '../playerManager'
+import { percentOfLine } from '../utilities'
+import { findCarModelById } from '../carData'
+import { RaceData } from '../race'
+import { Game_2DUI } from '../ui/index'
+import { SCENE_MGR } from '../scene/raceSceneManager'
+import { PlayerRankingsType, sortPlayersByPosition } from './state-data-utils'
+import { Projectile } from '../projectiles'
+
+//import { Schema, type, MapSchema } from "@colyseus/schema";
+
+let allRooms:RoomAvailable[]=[]
+//let allPlayers:PlayerState[]=[]
+
+//tracer function
+//i need a way to sync server and client time, for now using this to later revisit
+function getSharedTimeNow(){
+    return Date.now()
+}
+
+function updatePlayerRacingData(raceData: clientState.PlayerRaceDataState) {
+    SceneData.player.raceEndTime = raceData.endTime
+    //calculate it from lap + segment+percent?  easier if server calculates it
+    SceneData.player.racePosition = raceData.racePosition ? raceData.racePosition : -1
+
+    if(SceneData.player.raceEndTime){
+        SceneData.player.completedRace = true
+        //Game_2DUI.showRaceEnded
+        SCENE_MGR.racingScene.playerFinishedRace()
+    }else if(!GAME_STATE.raceData.started){
+        //find better spot for this, as is only called before race start
+        updateRacerStartPos()
+    }
+
+    //for now do not sync lap with server
+    //scene.player.lap = (raceData.lap) ? raceData.lap : -1
+}
+
+
+function updateRaceData(raceData:clientState.RaceState){
+    log("updateRaceData",raceData,SceneData.player.lap + " / " + raceData.maxLaps)
+    switch( raceData.status ){
+        case 'not-started':
+            GAME_STATE.raceData.id = raceData.id
+            GAME_STATE.raceData.maxLaps = raceData.maxLaps
+<<<<<<< HEAD
+            Game_2DUI.updateLapCounter(SceneData.player.lap , raceData.maxLaps)
+            break; 
+        case 'starting':
+            GAME_STATE.raceData.maxLaps = raceData.maxLaps
+            Game_2DUI.updateLapCounter(SceneData.player.lap, raceData.maxLaps)
+=======
+            if(raceData.name) GAME_STATE.raceData.name = raceData.name
+            Game_2DUI.updateLapCounter(scene.player.lap , raceData.maxLaps)
+            log("updateRaceData.GAME_STATE.raceData",GAME_STATE.raceData)
+            break; 
+        case 'starting':
+            //GAME_STATE.raceData.maxLaps = raceData.maxLaps
+            //GAME_STATE.raceData.name = raceData.name
+            Game_2DUI.updateLapCounter(scene.player.lap, raceData.maxLaps)
+>>>>>>> integration
+            Game_2DUI.showRaceStartMsg(true)
+            Game_2DUI.updateRaceStarting( Math.round( (raceData.startTime - raceData.serverTime)/1000 ) )
+            GAME_STATE.raceData.startTime = Date.now() + (raceData.startTime - raceData.serverTime)
+            break;
+        case 'started':
+            SCENE_MGR.racingScene.startRace()
+            //sync with server?? but then cannot use start time to compute diffs locally?
+            //GAME_STATE.raceData.startTime = raceData.startTime 
+            
+                break;
+        case 'ended':
+            if(GAME_STATE.getRaceRoom()){
+                const pVal = GAME_STATE.getRaceRoom().state.players.get(SceneData.player.sessionId)
+                if(pVal) updatePlayerRacingData( pVal.racingData as clientState.PlayerRaceDataState);
+            }
+            
+            SCENE_MGR.racingScene.endRace()
+            //sync with server?? but then cannot use start time to compute diffs locally?
+            //GAME_STATE.raceData.endTime = raceData.endTime
+        break;
+    } 
+}
+function updateRacerStartPos(){
+<<<<<<< HEAD
+    if(!GAME_STATE.raceData.started){
+        const playerRank = SceneData.player.racePosition !== undefined ? SceneData.player.racePosition : -1
+=======
+    if(!GAME_STATE.raceData.started && !GAME_STATE.raceData.ended){
+        const playerRank = scene.player.racePosition !== undefined ? scene.player.racePosition : -1
+>>>>>>> integration
+        if(playerRank > 0){
+            SCENE_MGR.racingScene.moveRacerToStartPosition( playerRank - 1 )
+        }
+    }
+}
+function updateEnrollment(enrollment:clientState.EnrollmentState){
+    log("updateEnrollment",enrollment,Math.round( (enrollment.endTime - enrollment.serverTime)/1000 ))
+
+    updateRacerStartPos()
+
+    GAME_STATE.raceData.maxPlayers = enrollment.maxPlayers
+    if( enrollment.open ){
+        Game_2DUI.showRaceStartMsg(true)
+        Game_2DUI.updateRaceStartWaiting( Math.round( (enrollment.endTime - enrollment.serverTime)/1000 ) )
+    }else{
+        Game_2DUI.showRaceStartMsg(false)
+    }
+}
+export async function onConnect(room: Room) {
+    GAME_STATE.setGameRoom( room )
+
+    GAME_STATE.setGameConnected('connected')
+
+   if(room.name.indexOf("lobby")>-1){
+    onLobbyConnect(room)
+   }else{
+    onLevelConnect(room)
+   }
+}
+
+export function onDisconnect(room: Room,code?:number) {
+    ENEMY_MGR.removeAllPlayers()
+
+    GAME_STATE.setGameConnected('disconnected')
+
+    Game_2DUI.updateLeaderboard("Disconnected",[])
+}
+
+let lastStateChangeTime = Date.now()
+
+//TODO throttle this if written to fast, maybe shift it to a system?
+export function updateLeaderboard(room: Room<clientState.RaceRoomState>){
+    //log("update_full_list",room.state.players)
+    //debugger
+    //room.state.players
+    if(!room || !room.state){
+        Game_2DUI.updateLeaderboard("Racers",[])
+        return
+    }
+    
+    const playerDataRanked = sortPlayersByPosition(room.state.players)
+
+    const roomNames:string[] = []
+    let counter = 1
+    for(const p in playerDataRanked){
+        const pd = playerDataRanked[p]
+        roomNames.push( counter + ": " + pd.name )
+
+        counter++
+    }
+
+    Game_2DUI.updateRacePosition( SceneData.player.racePosition, counter - 1)
+    Game_2DUI.updateRaceCount( counter - 1, GAME_STATE.raceData.maxPlayers)
+    
+    if( Game_2DUI.isRaceResultsPromptVisible() ) Game_2DUI.updateGameResultRows( GAME_STATE.getRaceRoom()?.state ) //call after show
+
+    //debugger
+    Game_2DUI.updateLeaderboard("Racers",roomNames)
+}
+function onLevelConnect(room: Room<clientState.RaceRoomState>) {
+
+    
+    room.onStateChange((state:clientState.RaceRoomState) => {
+        const now = Date.now()
+        //reports when anything in state changes
+        //log("level state.onStateChange:", (now-lastStateChangeTime),"ms");
+        lastStateChangeTime = Date.now()
+    })
+
+    room.state.listen("raceData",(raceData:clientState.RaceState)=>{
+        log("room.state.listen.raceData",raceData) 
+        //RaceStatus="unknown"|"not-started"|"started"|"ended"
+        updateRaceData(raceData)
+    })
+    room.state.raceData.onChange = (changes:DataChange<any>[])=>{
+        log("room.state.raceData.onChange",changes) 
+        //RaceStatus="unknown"|"not-started"|"started"|"ended"
+        updateRaceData(room.state.raceData)
+    }
+    room.state.enrollment.onChange = (changes:DataChange<any>[])=>{
+        log("room.state.enrollment.onChange",changes) 
+        //RaceStatus="unknown"|"not-started"|"started"|"ended"
+        updateEnrollment(room.state.enrollment)
+    }
+    room.state.listen("enrollment",(enrollment:clientState.EnrollmentState)=>{
+        log("room.state.listen.enrollment",enrollment) 
+        //RaceStatus="unknown"|"not-started"|"started"|"ended"
+        updateEnrollment(enrollment)
+    })
+    room.state.players.onAdd = (player: clientState.PlayerState, sessionId: string) => {
+        log("room.state.players.onAdd",player)
+        //const playerCallbacks:PlayerInst = (player as PlayerInst)
+        
+        //player.racingData.carScenePosition
+
+        //if full properties change
+        player.onChange = (changes:DataChange<any>[])=>{
+            //log("player.onChange",changes)
+        }
+
+        if(player.sessionId == GAME_STATE.gameRoom.sessionId){
+            SceneData.player.serverState = player
+            SceneData.player.sessionId = player.sessionId
+        } else{
+            let closestPointId = player.racingData.closestPointID
+            if(closestPointId === undefined || closestPointId < 0){
+                closestPointId = 0
+            }
+            //player.userId,player.publicKey,
+
+            const playerState:SceneData.PlayerBase = new SceneData.PlayerBase() //TODO cache this? fly weight pattern?
+            playerState.name = player.userData.name
+            playerState.userId = player.userData.userId
+            playerState.carModelId = player.racingData.carModelId
+            playerState.racePosition = player.racingData.racePosition
+            
+            const playerRank = playerState.racePosition !== undefined ? playerState.racePosition : -1
+                
+            let addPosition = GAME_STATE.trackData.trackPath[closestPointId]
+            //debugger
+            if(!GAME_STATE.raceData.started){
+                if(playerRank >= 0){
+                    addPosition = SCENE_MGR.racingScene.startPositionSceneEnts[ playerRank ].entity.getComponent(Transform).position//.subtract( SceneData.center )
+                    //SCENE_MGR.racingScene.moveRacerToStartPosition( playerRank )
+                    ENEMY_MGR.addEnemy(player.sessionId,GAME_STATE.trackData.trackPath[closestPointId], Color3.Green(), playerState)    
+                }
+            }
+            ENEMY_MGR.addEnemy(player.sessionId,addPosition, Color3.Green(), playerState)    
+
+        }
+
+        //const playerState:PlayerState = (player as PlayerInst)
+        updateLeaderboard(room)
+
+        /*
+        player.buttons.listen("forward", (forward: boolean) => {
+            log("player.listen.buttons.forward",player.userData.name,forward,scene.player.MOVE_FORWARD)
+            
+            if(player.sessionId == scene.player.sessionId){
+                //scene.player.MOVE_FORWARD = forward
+            }else{
+                const enemy = ENEMY_MGR.getPlayerByID(player.sessionId)
+                if(enemy ){
+                    enemy.state.MOVE_FORWARD = forward
+                }
+            }
+            //refreshLeaderboard();
+        }); */
+
+        player.listen("buttons", (buttons: clientState.PlayerButtonState) => {
+            log("player.listen.buttons",buttons)
+            
+            if(player.sessionId == SceneData.player.sessionId){
+                //scene.player.MOVE_FORWARD = forward
+            }else{
+                const enemy = ENEMY_MGR.getPlayerByID(player.sessionId)
+                if(enemy ){
+                    log("enemy buttons",enemy.state.name,buttons)
+                    enemy.state.MOVE_FORWARD = buttons.forward
+                    enemy.state.MOVE_BACKWARD = buttons.backward
+                    if(!enemy.state.shoot_btn_down && buttons.shoot){
+                        const targetWorldPos = enemy.getEnemyData().targetWorldPos
+                        //log("enemy shooting",enemy.state.name)
+                        //TODO MOVE THIS TO A OBJECT FACTORY TO REUSE
+                        let rocket = new Projectile({position: new Vector3(targetWorldPos.x, SceneData.scene.raceGroundElevation + 0.25,targetWorldPos.z), scale: new Vector3(1, 1, 1)}, Vector3.Forward().rotate(enemy.state.shootDirection).normalize(),20)
+                    }
+                    enemy.state.shoot_btn_down = buttons.shoot
+                    //enemy.state. = buttons.shoot
+                }
+            }
+            //refreshLeaderboard();
+        }); 
+        player.racingData.listen("carModelId", (carModelId: string) => {
+            log("player.racingData.listen.carModelId",carModelId)
+            
+            if(player.sessionId != SceneData.player.sessionId){
+                const enemy = ENEMY_MGR.getPlayerByID(player.sessionId)
+                if(enemy ){
+                    enemy.updateCarModelById( carModelId )
+                }
+            }
+            //refreshLeaderboard();
+        }); 
+
+        player.listen("racingData", (raceData:clientState.PlayerRaceDataState) => {
+            //scene.player.closestPointID
+            if(player.sessionId == SceneData.player.sessionId){
+                //scene.player.serverState = player
+                updatePlayerRacingData(raceData);
+            } else{ 
+                const enemy = ENEMY_MGR.getPlayerByID(player.sessionId)
+                //raceData.
+                if(enemy.state){
+                    enemy.state.currentSpeed = raceData.currentSpeed
+                    
+                    enemy.state.closestPointID = raceData.closestPointID
+                    enemy.state.carModelId = raceData.carModelId
+                    enemy.state.raceEndTime = raceData.endTime
+                    enemy.state.completedRace = raceData.endTime !== undefined
+                    enemy.state.racePosition = raceData.racePosition
+                    enemy.state.lap = raceData.lap
+                    if(raceData.worldMoveDirection) enemy.state.worldMoveDirection.copyFrom(raceData.worldMoveDirection) //using it for wheel rotation
+                    if(raceData.cameraDirection) enemy.state.cameraDirection.copyFrom(raceData.cameraDirection) //, will be direction next gas is hit?
+                    //shootDirection being stored in enemyData = targetWorldRot. copy it here too for shooting??
+                    if(raceData.shootDirection) enemy.state.shootDirection.copyFrom(raceData.shootDirection)
+                    //playerState.shootDirection = player.racingData.shootDirection
+            
+                }
+                //calculateWorldPosFromClosestSegmentData(player,enemy)
+                //const pos = calculateWorldPosFromWorldPos(player,enemy)
+                const posS = calculateWorldPosFromClosestSegmentData(player,enemy)
+ 
+                //log("vec",pos,posS)
+
+                //enemy.getEnemyData().worldPos.copyFrom(posS)
+                enemy.getEnemyData().targetWorldPos.copyFrom(posS)
+                enemy.getEnemyData().targetWorldRot.copyFrom( raceData.shootDirection )
+
+                //enemy.getEnemyData().worldPos.copyFrom(a)
+
+                
+            }
+            updateLeaderboard(room)
+        })
+        player.userData.listen("name", (name: string) => {
+            if(player.sessionId == SceneData.player.sessionId){
+                //scene.player.serverState = player
+            } else{
+                const enemy = ENEMY_MGR.getPlayerByID(player.sessionId)
+                enemy.setName(name)
+            }
+        })
+
+        
+        
+    }
+
+    // when a player leaves, remove it from the leaderboard.
+    room.state.players.onRemove = (player:clientState.PlayerState,key:any) => {
+        log("room.state.player.onRemove")
+        //allPlayers = allPlayers.filter((player) => instance.id !== player.id); 
+
+        if(player.sessionId == SceneData.player.sessionId){
+            SceneData.player.serverState = undefined
+        }else{
+            ENEMY_MGR.removePlayer(player.sessionId)
+        }
+
+        updateLeaderboard(room)
+    }
+
+    room.onLeave(() => {
+        //allPlayers = [];
+        //update_full_list();
+        log("Bye, bye!");
+    });
+    
+    room.onLeave((code) => {
+        log("onLeave, code =>", code);
+    });
+}
+
+function onLobbyConnect(lobby: Room) {
+
+    function update_full_list(){
+        //debugger
+        const roomNames:string[] = []
+        for(const p in allRooms){
+            roomNames.push( JSON.stringify({clients:allRooms[p].clients,roomId:allRooms[p].roomId}) )
+        }
+        //debugger
+        Game_2DUI.updateLeaderboard("Rooms",roomNames)
+    }
+    
+    lobby.onStateChange((state) => {
+        log("Custom lobby state:", state);
+    })
+
+    lobby.onMessage("rooms", (rooms) => {
+        log("onMessage.rooms",rooms)
+        allRooms = rooms;
+        update_full_list();
+
+        log("Received full list of rooms:", allRooms);
+    });
+
+    lobby.onMessage("+", ([roomId, room]) => {
+        log("onMessage.room.+",roomId,room)
+        let roomIndex = -1
+        let counter = 0
+        for(const p in allRooms){
+            if(allRooms[p].roomId == roomId){
+                roomIndex = counter
+                break;
+            }
+            counter++
+        }
+        if (roomIndex !== -1) {
+            allRooms[roomIndex] = room;
+        } else {
+            allRooms.push(room);
+        }
+        update_full_list()
+    });
+ 
+    lobby.onMessage("-", (roomId) => {
+        log("onMessage.room.-",roomId)
+        allRooms = allRooms.filter((room) => room.roomId !== roomId); 
+
+        update_full_list()
+    }); 
+
+    lobby.onLeave(() => {
+        allRooms = [];
+        //update_full_list();
+        log("Bye, bye!");
+    });
+    
+    lobby.onLeave((code) => {
+        log("onLeave, code =>", code);
+    });
+}
+
+function calculateWorldPosFromWorldPos(player:clientState.PlayerState,enemy:Enemy):Vector3 {
+    const vec = new Vector3().copyFrom(player.racingData.worldPosition)
+    //FIXME, need to solve this, it keeps placing them infront of the player
+    vec.addInPlace( SceneData.scene.center ).subtract(GAME_STATE.trackData.trackPath[0])
+    
+
+    return vec
+}
+function calculateWorldPosFromClosestSegmentData(player:clientState.PlayerState,enemy:Enemy):Vector3 {
+    let closestSegmentID = player.racingData.closestSegmentID
+    
+    if(closestSegmentID === undefined || closestSegmentID < 0){
+        closestSegmentID = 0
+    }
+    let closestSegmentIDNext = GAME_STATE.trackData.getNextSegmentId(closestSegmentID)
+    
+    
+    const a = GAME_STATE.trackData.trackPath[closestSegmentID]
+    const b = GAME_STATE.trackData.trackPath[closestSegmentIDNext]
+    //TODO create vector pool
+
+    if(!a) log("calculateWorldPosFromClosestSegmentData a is null!!!")
+    if(!b) log("calculateWorldPosFromClosestSegmentData b is null!!!")
+    const moveDir = b.subtract(a).normalize()
+
+    //enemy.closestProjectedPointCache.copyFrom(player.racingData.closestProjectedPoint)
+    const percent = player.racingData.closestSegmentPercent//percentOfLine(a,b,enemy.closestProjectedPointCache )
+    //log(player.userData.name,"closestSegmentID",closestSegmentID,percent,player.racingData.closestProjectedPoint,player.racingData.closestSegmentDistance,Vector3.Cross(moveDir,Vector3.Up()).normalize().scale(player.racingData.closestSegmentDistance))
+    const positionOnSegement = Vector3.Lerp( a,b, percent )
+
+    //log("returning xx",positionOnSegement,player.racingData.closestSegmentDistance)
+
+    const closestSegmentDist = (player.racingData.closestSegmentDistance !== undefined ) ? player.racingData.closestSegmentDistance : 0
+
+    positionOnSegement.addInPlace( Vector3.Cross(moveDir,Vector3.Up()).normalize().scale(closestSegmentDist) )// )
+
+    
+    //log("returning",positionOnSegement)
+    
+    //TODO lerp this
+    return positionOnSegement
+
+    //enemy.entities.main.getComponent(Transform).rotation.copyFrom( player.racingData.shootDirection)
+}

@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width" />
+
+    <style>
+      body { font-family: Tahoma, Geneva, sans-serif; }
+    </style>
+
+    <!-- colyseus.js client -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+    <script type="text/javascript" src="https://unpkg.com/colyseus.js@^0.14.0/dist/colyseus.js"></script>
+
+    <style type="text/css">
+      .player {
+        width: 100px;
+        height: 100px;
+        position: absolute;
+        padding-top: 24px;
+        box-sizing: border-box;
+        left: 0;
+        top: 0;
+      }
+      table.blueTable {
+        border: 1px solid #1C6EA4;
+        background-color: #EEEEEE;
+        width: 100%;
+        text-align: left;
+        border-collapse: collapse;
+        }
+        table.blueTable td, table.blueTable th {
+        border: 1px solid #AAAAAA;
+        padding: 3px 2px;
+        }
+        table.blueTable tbody td {
+        font-size: 13px;
+        }
+        table.blueTable tr:nth-child(even) {
+        background: #D0E4F5;
+        }
+        table.blueTable thead {
+        background: #1C6EA4;
+        background: -moz-linear-gradient(top, #5592bb 0%, #327cad 66%, #1C6EA4 100%);
+        background: -webkit-linear-gradient(top, #5592bb 0%, #327cad 66%, #1C6EA4 100%);
+        background: linear-gradient(to bottom, #5592bb 0%, #327cad 66%, #1C6EA4 100%);
+        border-bottom: 2px solid #444444;
+        }
+        table.blueTable thead th {
+        font-size: 15px;
+        font-weight: bold;
+        color: #FFFFFF;
+        border-left: 2px solid #D0E4F5;
+        }
+        table.blueTable thead th:first-child {
+        border-left: none;
+        }
+
+        table.blueTable tfoot {
+        font-size: 14px;
+        font-weight: bold;
+        color: #FFFFFF;
+        background: #D0E4F5;
+        background: -moz-linear-gradient(top, #dcebf7 0%, #d4e6f6 66%, #D0E4F5 100%);
+        background: -webkit-linear-gradient(top, #dcebf7 0%, #d4e6f6 66%, #D0E4F5 100%);
+        background: linear-gradient(to bottom, #dcebf7 0%, #d4e6f6 66%, #D0E4F5 100%);
+        border-top: 2px solid #444444;
+        }
+        table.blueTable tfoot td {
+        font-size: 14px;
+        }
+        table.blueTable tfoot .links {
+        text-align: right;
+        }
+        table.blueTable tfoot .links a{
+        display: inline-block;
+        background: #1C6EA4;
+        color: #FFFFFF;
+        padding: 2px 8px;
+        border-radius: 5px;
+        }
+    </style>
+
+  </head>
+  <body>
+    <h1>
+      <a href="https://github.com/colyseus/colyseus-examples"><img src="https://cdn.jsdelivr.net/gh/colyseus/colyseus@master/media/header.png" height="100" alt="colyseus" /></a>
+    </h1>
+
+    <p>This example shows how to use custom data structures in your room's state.</p>
+
+    <strong>commands</strong><br>
+
+    <button onclick="extendEnrollmentTime()">extendEnrollmentTime</button>
+    <button onclick="start()">start</button>
+    <br />
+    
+    <button onmousedown="forward(true)" onmouseup="forward(false)">forward</button>
+    <button onmousedown="left(true)" onmouseup="left(false)">left</button>
+    <button onmousedown="backward(true)" onmouseup="backward(false)">backwards</button>
+    <button onmousedown="right(true)" onmouseup="right(false)">right</button>
+    <br />
+
+    <select>
+        
+    </select>
+
+    ROOM Data
+    <div id="thisRoom"></div>
+    <br/>
+    Enroll Data
+    <div id="enrollData"></div>
+    <br/>
+    Race Data
+    <div id="raceData"></div>
+    <br/>
+    Level Data
+    <div id="levelData"></div>
+    <br/>
+    Me: <div id="mySessionId"></div>
+    <br/>
+    Act As: <input id="myActAsSessionId"/> Password: <input id="adminPassword"/> 
+    <br/>
+    Name: <input id="myName"/> <input type="button" value="update" onclick="updateName()"/>
+    <br/>
+    Button Data<textarea id="myButtons" ></textarea>
+    <br/>
+    Race Data<textarea id="myRaceData" ></textarea>
+        <input type="button" value="update" onclick="updateRacingData()"/>
+    <br/>
+    <br/>
+    <br/>
+    log <span id="log"></span>
+    
+    <script>
+
+        function createTableRow(dataRow,rowIndex){
+            var row = $("<tr/>").attr('id', dataRow[0]);
+            $.each(dataRow, function(colIndex, c) { 
+                row.append($("<t"+(rowIndex == 0 ?  "h" : "d")+"/>").text(c));
+            });
+            return row
+        }
+        function appendTableRow(table,dataRow,rowIndex){
+            var row = createTableRow(dataRow,rowIndex)
+            table.append(row);
+            console.log(table.html())
+        }
+        function makeTable(container, tableId, data) {
+            var table = $("<table/>").addClass('blueTable').attr('id', tableId);
+            $.each(data, function(rowIndex, r) {
+                appendTableRow(table,r,rowIndex)
+            });
+            return container.append(table);
+        }
+        function getTableData(table) {
+            var data = [];
+            table.find('tr').each(function (rowIndex, r) {
+                var cols = [];
+                $(this).find('th,td').each(function (colIndex, c) {
+                    cols.push(c.textContent);
+                });
+                data.push(cols);
+            });
+            return data;
+        }
+        function replaceRowById(table,value,data){
+            console.log("replaceRowById",value)
+
+            table.find('tr').each(function (index) {
+                if (!index) return;
+                $(this).find("td").each(function () {
+                    console.log("checking ",$(this).text(),value)
+                    var id = $(this).text().trim();
+                    var found = id === value;
+                    
+                    
+                    if(found){ 
+                        console.log("replaceRowById found",found,$(this).closest('tr').html())
+                        var row = createTableRow(data,1)
+                        $(this).closest('tr').html(row.html())
+                        //appendTableRow(table,data,1)
+                    }
+
+                    return found;
+                });
+            });
+        }
+        function removeById(table,value){
+            console.log("remove",value)
+
+            table.find("tr").each(function (index) {
+                if (!index) return;
+                $(this).find("td").each(function () {
+                    console.log("checking ",$(this).text(),value)
+                    var id = $(this).text().trim();
+                    var found = id === value;
+                    
+                    console.log("found",found,$(this).closest('tr').html())
+                    if(found) $(this).closest('tr').remove()
+                    return found;
+                });
+            });
+        }
+        var data = [["ID","Players"], //headers
+                ]
+        var cityTable = makeTable($(document.body),"playerTable", data);
+
+    </script>
+    <script>
+        var host = window.document.location.host.replace(/:.*/, '');
+
+        var client = new Colyseus.Client(location.protocol.replace("http", "ws") + "//" + host + (location.port ? ':' + location.port : ''));
+        var room;
+
+        var onJoin = (room_instance) => {
+            room = room_instance
+
+            var players = {};
+            var colors = ['red', 'green', 'yellow', 'blue', 'cyan', 'magenta'];
+
+
+            $("#thisRoom").html(JSON.stringify(room))
+            $("#raceData").html(JSON.stringify(room.state.raceData))
+            $("#levelData").html(JSON.stringify(room.state.levelData))
+            
+            $("#enrollData").html(JSON.stringify(room.state.enrollment))
+            $("#mySessionId").html(room.sessionId)
+            
+            
+
+            room.state.enrollment.onChange = function (changes) {
+                console.log("enrollment data updated")
+                $("#enrollData").html(JSON.stringify(room.state.enrollment))
+            }
+            room.state.raceData.onChange = function (changes) {
+                console.log("race data updated")
+                $("#raceData").html(JSON.stringify(room.state.raceData))
+            }
+            room.state.levelData.onChange = function (changes) {
+                console.log("level data updated")
+                $("#levelData").html(JSON.stringify(room.state.levelData))
+            }
+            /*
+            room.state.raceData.listen("openEnrollment",(currentValue, previousValue) => {
+                console.log("race data.openEnrollment updated")
+                $("#raceData").html(JSON.stringify(room.state.raceData))
+            })*/
+
+            // listen to patches coming from the server
+            room.state.players.onAdd = function (player, sessionId) {
+                /*var dom = document.createElement("div");
+                dom.className = "player";
+                dom.style.left = Math.floor(Math.random() * 400) + "px";
+                dom.style.top = Math.floor(Math.random() * 400) + "px";
+                dom.style.background = colors[Math.floor(Math.random() * colors.length)];
+                dom.innerText = "Player " + sessionId;
+                */
+                appendTableRow($("#playerTable"),[sessionId,JSON.stringify(player)],1)
+
+                if(player.sessionId==sessionId){
+                    $("#myName").val(player.name)
+                    $("#myRaceData").val(JSON.stringify(player.racingData))
+                    $("#myButtons").val(JSON.stringify(player.buttons))
+                }
+
+                player.onChange = function (changes) {
+                    console.log("player changes!!!",changes)
+                    //dom.style.left = player.x + "px";
+                    //dom.style.top = player.y + "px";
+                    replaceRowById($("#playerTable"),sessionId,[sessionId,JSON.stringify(player)],1)
+                }
+                player.userData.onChange = function (changes) {
+                    console.log("player changes!!!",changes)
+                    //dom.style.left = player.x + "px";
+                    //dom.style.top = player.y + "px";
+                    replaceRowById($("#playerTable"),sessionId,[sessionId,JSON.stringify(player)],1)
+                }
+                player.buttons.onChange = function (changes) {
+                    console.log("player buttons changes!!!",changes)
+                    //dom.style.left = player.x + "px";
+                    //dom.style.top = player.y + "px";
+                    replaceRowById($("#playerTable"),sessionId,[sessionId,JSON.stringify(player)],1)
+                }
+                player.racingData.onChange = function (changes) {
+                    console.log("player racingData changes!!!",changes)
+                    //dom.style.left = player.x + "px";
+                    //dom.style.top = player.y + "px";
+                    replaceRowById($("#playerTable"),sessionId,[sessionId,JSON.stringify(player)],1)
+                }
+
+                players[sessionId] = sessionId;
+                //document.body.appendChild(dom);
+            }
+
+            room.state.players.onRemove = function (player, sessionId) {
+                //document.body.removeChild(players[sessionId]);
+                removeById($("#playerTable"),sessionId)
+                delete players[sessionId];
+            }
+
+            
+            room.onMessage("hello", (message) => {
+                console.log(message);
+            });
+
+            window.addEventListener("keydown", function (e) {
+                if (e.which === 38) {
+                    forward(true);
+
+                } else if (e.which === 39) {
+                    right(true);
+
+                } else if (e.which === 40) {
+                    backward(true);
+
+                } else if (e.which === 37) {
+                    left(true);
+                }
+            });
+
+            window.addEventListener("keyup", function (e) {
+                if (e.which === 38) {
+                    forward(false);
+
+                } else if (e.which === 39) {
+                    right(false);
+
+                } else if (e.which === 40) {
+                    backward(false);
+
+                } else if (e.which === 37) {
+                    left(false);
+                }
+            });
+
+        }
+
+        //var joinOptions = {}
+        var connectOptions = {
+          //raceDataOptions: raceDataOptions,
+          //city_track_demo_1/desert_track_demo_1
+          "raceDataOptions.levelId": "city_track_demo_1" , //name of race
+          "raceDataOptions.maxPlayers": undefined,//raceDataOptions.maxPlayers,
+          "raceDataOptions.customRoomId": undefined//raceDataOptions.customRoomId
+        }
+        
+        client.joinOrCreate("racing_room",connectOptions).then( onJoin );
+
+        var keyStates = {
+            forward: false,
+            backward: false,
+            left: false,
+            right: false
+        }
+        
+        function roomSend(key,val){
+            console.log("roomSend",key,val)
+            room.send(key,val)
+        }
+        function updateRacingData (val) {
+            roomSend("player.racingData.update", JSON.parse($("#myRaceData").val()));
+        }
+        function updateName(val){
+            roomSend("player.userData.name.update", $("#myName").val());
+        }
+        function forward (val) {
+            console.log()
+            keyStates.forward=val
+            roomSend("player.buttons.update", keyStates);
+        }
+
+        function right (val) {
+            keyStates.right=val
+            roomSend("player.buttons.update", keyStates);
+        }
+
+        function backward (val) {
+            keyStates.backward=val
+            roomSend("player.buttons.update", keyStates)
+        }
+
+        function left (val) {
+            keyStates.left=val
+            roomSend("player.buttons.update", keyStates)
+        }
+        
+        function start(){
+            roomSend("race.start");
+        }
+        function extendEnrollmentTime(){
+            roomSend("enrollment.extendTime", 3000);
+        }
+
+    </script>
+
+    <script>
+        function log(str){
+            document.getElementById("log").innerText += "\n"+str
+        }
+    </script>
+
+  </body>
+</html>

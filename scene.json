@@ -1,0 +1,56 @@
+{
+  "display": {
+    "title": "DecentRally 1.0",
+    "favicon": "favicon_asset"
+  },
+  "contact": {
+    "name": "dzsunyec and wacaine",
+    "email": ""
+  },
+  "owner": "",
+  "scene": {
+    "parcels": [
+      "-14,76",
+      "-13,76",
+      "-12,76",
+      "-14,77",
+      "-13,77",
+      "-12,77",
+      "-14,78",
+      "-13,78",
+      "-12,78"
+    ],
+    "base": "-14,76"
+  },
+  "communications": {
+    "type": "webrtc",
+    "signalling": "https://signalling-01.decentraland.org"
+  },
+  "policy": {
+    "contentRating": "E",
+    "fly": true,
+    "voiceEnabled": true,
+    "blacklist": []
+  },
+  "requiredPermissions": [
+    "ALLOW_TO_MOVE_PLAYER_INSIDE_SCENE"
+  ],
+  "main": "bin/game.js",
+  "tags": [],
+  "spawnPoints": [
+    {
+      "name": "spawn1",
+      "default": true,
+      "position": {
+        "x": [0,2],
+        "y": [1,2],
+        "z": [16,30]
+      },
+      "cameraTarget": {
+        "x": 8,
+        "y": 1,
+        "z": 8
+      }
+    }
+  ]
+}
