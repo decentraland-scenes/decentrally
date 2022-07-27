@@ -78,13 +78,13 @@ export class LobbyScene extends SubScene{
             new AvatarModifierArea({
               area: {
                 //x,z of size 8 grows beyond crane base size
-                box: new Vector3(4, SceneData.raceElevationRange, 4) //safe bet to hide everyone, long term unhide when out of car
+                box: new Vector3(5, SceneData.raceElevationStartRange, 5) //safe bet to hide everyone, long term unhide when out of car
               }, 
               modifiers: [AvatarModifiers.HIDE_AVATARS], 
             })
           ) 
           const modAreaPos =  new Vector3().copyFrom(SceneData.center)
-          modAreaPos.y = (SceneData.raceElevationStartRange / 2) + 4
+          modAreaPos.y = (SceneData.raceElevationStartRange)
           modArea.addComponent(
             new Transform({ 
               position: modAreaPos
