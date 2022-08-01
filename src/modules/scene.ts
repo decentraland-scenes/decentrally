@@ -82,14 +82,14 @@ export class Scene {
     this.scale = ParcelScale
     this.sizeX = ParcelScale*16
     this.sizeZ = ParcelScale*16 
-    this.sizeY = (Math.log(ParcelScale + 1) * Math.LOG2E) * 20// log2(n+1) x 20 //Math.log2( ParcelScale + 1 ) * 20
+    this.sizeY = (Math.log((ParcelScale*ParcelScale) + 1) * Math.LOG2E) * 20// log2(n+1) x 20 //Math.log2( ParcelScale + 1 ) * 20
     this.movePlayerYPadding = .2//2 //how much more of the Y should we account for to "drop the player", to ensure they collid with ground
     this.startPlayerWayAboveRacePosYPad = 5//how much more of the Y should we account for to "drop the player", trying to hide bloom
     this.carWidth = 1
     this.lobbyElevation = 0
     //workaround to blooms showing up even in hidden areas, going to randomly place race game height to minimimze the issue
     //raceElevationStartRange is the lowest possible point it can spawn
-    //3x3 has a max of 40 meters  13+12 will be as high as 25 leaving room for 15 meter tall items at most
+    //3x3 has a max of ~66 meters  13+12 will be as high as 25 leaving room for 15 meter tall items at most
     //set raceElevationRange to 0 if you want a fixed race spawn location 
     //realized random placement will cause entire bodies / not just heads to appear leaving at 0 for now.
     //maybe we can spawn off to side, for a second, them move then in?
