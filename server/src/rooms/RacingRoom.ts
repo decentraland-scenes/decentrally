@@ -129,7 +129,9 @@ export class RacingRoom extends Room<RacingRoomState> {
         //(lap + 1) * closestSegId + percentOfSeg }
 
         let countPlayersDone = 0
+        let totalPlayers = 0
         let playersConnected = 0
+        let playersGone = 0
         //const playerData:PlayerRankingsType[] = []
         this.state.players.forEach(
             (val:PlayerState)=>{
@@ -139,22 +141,19 @@ export class RacingRoom extends Room<RacingRoomState> {
                 if(val.connStatus == 'connected' && val.type == 'racer'){
                     playersConnected ++
                 }
-                playersConnected
+                if(val.connStatus != 'connected' && val.type == 'racer'){
+                    playersGone ++
+                }
+                if(val.type == 'racer'){
+                    totalPlayers++
+                }
             }
         )
 
         let raceOver = false
 
-        //if greater than 0, it will end race when all but N person is finished
-        const endWhenAllButNFinish = 0
-
-        if(
-            //if all but 1 player finished race is over
-            (playersConnected > 1 && (countPlayersDone) >= playersConnected-endWhenAllButNFinish)
-            //if only 1 player connected and all are done
-            || (playersConnected == 1 && countPlayersDone == 1)){
-            
-            log(CLASSNAME,this.roomId,METHOD_NAME,"players done","countPlayersDone",countPlayersDone,"playersConnected",playersConnected
+        if( totalPlayers <= (countPlayersDone+playersGone) ){
+            log(CLASSNAME,this.roomId,METHOD_NAME,"players done","totalPlayers",totalPlayers,"playersGone",playersGone,"countPlayersDone",countPlayersDone,"playersConnected",playersConnected
             ,"raceOver",raceOver,"raceData.status",this.state.raceData.status,"raceData.hasRaceStarted()",this.state.raceData.hasRaceStarted()
             ,"raceData.isRaceOver",this.state.raceData.isRaceOver())
                 
@@ -191,8 +190,11 @@ export class RacingRoom extends Room<RacingRoomState> {
 
                 let totalProg = 0
                 
-                if(!val.racingData.visitedSegment0 && closestSegId == 0){
+                if(this.state.raceData.hasRaceStarted() && !val.racingData.visitedSegment0 && closestSegId == 0){
                     val.racingData.visitedSegment0 = true
+                    log(CLASSNAME,this.roomId,METHOD_NAME,"SET IT")
+                    log(CLASSNAME,this.roomId,METHOD_NAME,"SET IT")
+                    log(CLASSNAME,this.roomId,METHOD_NAME,"SET IT")
                 }
                 if(val.racingData.visitedSegment0){
                     val.racingData.lastKnownSegment = closestSegId
@@ -497,6 +499,7 @@ export class RacingRoom extends Room<RacingRoomState> {
             }
         }else{
             if(playerWasCreated) player.connStatus = "disconnected"
+            this.checkIsRaceOver()
         }
 
         if (removePlayer) {
@@ -516,6 +519,16 @@ export class RacingRoom extends Room<RacingRoomState> {
     onDispose() {
         const METHOD_NAME = "onDispose()"
         logEntry(CLASSNAME,this.roomId,METHOD_NAME);
+
+        if(!this.state.raceData.savedPlayerStats){
+            //one last rank update
+            this.updatePlayerRanks()
+
+            this.updatePlayerStats().then((result)=>{
+                log(CLASSNAME,this.roomId,METHOD_NAME,"XXXXX endRace all promised completed " , result)
+                this.broadcast("ended.roomAboutToDisconnect");
+            })
+        }
     }
     doEnrollment(){
         const METHOD_NAME = "doEnrollment()"
@@ -569,6 +582,10 @@ export class RacingRoom extends Room<RacingRoomState> {
         const METHOD_NAME = "endRace()"
         logEntry(CLASSNAME,this.roomId,METHOD_NAME);
 
+        if(this.state.raceData.isRaceOver()){
+            log(CLASSNAME,this.roomId,METHOD_NAME,"racing already over, skipping ")
+            return
+        }
         this.state.raceData.updateServerTime() 
         this.state.raceData.endTime = Date.now()
         this.state.raceData.status = "ended"
@@ -602,6 +619,12 @@ export class RacingRoom extends Room<RacingRoomState> {
         const METHOD_NAME = "updatePlayerStats()"
         logEntry(CLASSNAME,this.roomId,METHOD_NAME);
 
+        if(this.state.raceData.savedPlayerStats){
+            log(CLASSNAME,this.roomId,METHOD_NAME,"updatePlayerStats already calld, not executing again")    
+            return
+        }
+        this.state.raceData.savedPlayerStats = true
+
         const roomId = this.roomId
 
         const promises:Promise<any>[] = [];
@@ -619,6 +642,11 @@ export class RacingRoom extends Room<RacingRoomState> {
             log(CLASSNAME,this.roomId,METHOD_NAME," looping" + loopCount + this.state.players.size)
             //this.state.players.forEach((player) => {
       
+            if( !player.racingData.hasFinishedRace() ){
+                log(CLASSNAME,this.roomId,METHOD_NAME," did not finish race, skipping stats" + loopCount, player.userData.name)
+                return
+            }
+
             //player.id
             const playerData:PlayerState = player
 
@@ -642,6 +670,8 @@ export class RacingRoom extends Room<RacingRoomState> {
               playFabId: playFabId,
               totalTime: (playerData.racingData.endTime > -1 && playerData.racingData.endTime !== undefined ) ? (playerData.racingData.endTime - this.state.raceData.startTime) : CONFIG.MAX_POSSIBLE_RACE_TIME,
               lapTimes: playerData.racingData.lapTimes.toArray(),
+              //trk_feat_destroyed
+              //trackFeaturesDestroyed
               place: playerData.racingData.racePosition,
               levelName: this.state.raceData.name,
               levelId: this.state.raceData.id

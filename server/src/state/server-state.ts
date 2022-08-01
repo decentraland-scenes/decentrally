@@ -450,6 +450,8 @@ export class RaceState extends Schema implements serverStateSpec.RaceState {
   @type("number")
   maxLaps: number = CONFIG.RACE_MAX_LAPS_DEFAULT//FIXME - HARDCODED FOR NOW 
 
+  savedPlayerStats:boolean = false
+
   constructor() {
     super()
 
