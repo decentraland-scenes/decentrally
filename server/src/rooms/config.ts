@@ -13,7 +13,7 @@ export class Config{
 
   MAX_WAIT_TO_START_TIME_MILLIS=parseInt(process.env.MAX_WAIT_TO_START_TIME_MILLIS)
   STARTING_COUNTDOWN_TIME_MILLIS = 3000 
-  MAX_GAME_TIME_MILLIS = 60 * 1000 * 6 //6 min max?
+  MAX_GAME_TIME_MILLIS = parseInt(process.env.MAX_RACE_TIME_MILLIS) //60 * 1000 * 6 //6 min max?
   MAX_POSSIBLE_RACE_TIME = 9999 * 1000 //9999 seconds
 
   PLAYFAB_ENABLED = process.env.PLAYFAB_ENABLED === undefined || (process.env.PLAYFAB_ENABLED !== undefined && process.env.PLAYFAB_ENABLED === 'true')
