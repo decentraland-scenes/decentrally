@@ -145,12 +145,12 @@ export class RacingRoom extends Room<RacingRoomState> {
 
         let raceOver = false
 
-        //if true, it will end race when all but last person is finished
-        const endLevelWhenAllBut1Finish = false
+        //if greater than 0, it will end race when all but N person is finished
+        const endWhenAllButNFinish = 0
 
         if(
             //if all but 1 player finished race is over
-            (endLevelWhenAllBut1Finish && playersConnected > 1 && (countPlayersDone) >= playersConnected-1)
+            (playersConnected > 1 && (countPlayersDone) >= playersConnected-endWhenAllButNFinish)
             //if only 1 player connected and all are done
             || (playersConnected == 1 && countPlayersDone == 1)){
             
