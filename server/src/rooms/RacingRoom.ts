@@ -192,9 +192,6 @@ export class RacingRoom extends Room<RacingRoomState> {
                 
                 if(this.state.raceData.hasRaceStarted() && !val.racingData.visitedSegment0 && closestSegId == 0){
                     val.racingData.visitedSegment0 = true
-                    log(CLASSNAME,this.roomId,METHOD_NAME,"SET IT")
-                    log(CLASSNAME,this.roomId,METHOD_NAME,"SET IT")
-                    log(CLASSNAME,this.roomId,METHOD_NAME,"SET IT")
                 }
                 if(val.racingData.visitedSegment0){
                     val.racingData.lastKnownSegment = closestSegId
