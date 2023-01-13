@@ -220,3 +220,5 @@ This scene is protected with a standard Apache 2 licence. See the terms and cond
 Some sound clips are from [https://freesound.org](https://freesound.org).   Credits [here](/sounds/sound-credits.md)
 
 Portions of this program © 2022 Microsoft Azure PlayFab
+
+Multiplayer made possible with Colyseus [https://www.colyseus.io/](https://www.colyseus.io/)
