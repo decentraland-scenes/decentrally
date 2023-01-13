@@ -214,3 +214,9 @@ Any dependencies are installed and then the server should be running. You should
 ## Copyright info
 
 This scene is protected with a standard Apache 2 licence. See the terms and conditions in the [LICENSE](/LICENSE) file.
+
+## Acknowledgements
+
+Some sound clips are from [https://freesound.org](https://freesound.org).   Credits [here](/sounds/sound-credits.md)
+
+Portions of this program © 2022 Microsoft Azure PlayFab
